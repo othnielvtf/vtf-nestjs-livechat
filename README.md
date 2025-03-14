@@ -6,7 +6,7 @@
 
 ## Description
 
-A scalable and maintainable WebSocket-based live chat backend built with NestJS. This application provides real-time communication capabilities with features like room management, private messaging, typing indicators, and more.
+A scalable and maintainable WebSocket-based live chat backend built with NestJS. This application provides real-time communication capabilities with features like room management, private messaging, typing indicators, and more. Looking for the frontend? Can clone and set it up here https://github.com/othnielvtf/vtf-nestjs-frontend
 
 ## Features
 
