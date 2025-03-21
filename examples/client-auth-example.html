@@ -91,17 +91,26 @@
   
   <div class="container">
     <div class="panel">
-      <h2>Connection</h2>
-      <div>
-        <label for="userId">User ID:</label>
-        <input type="text" id="userId" value="user123">
-      </div>
+      <h2>Authentication</h2>
       <div>
         <label for="username">Username:</label>
-        <input type="text" id="username" value="John Doe">
+        <input type="text" id="username" value="john_doe">
       </div>
       <div>
-        <button id="connectBtn">Connect</button>
+        <label for="password">Password:</label>
+        <input type="password" id="password" value="password123">
+      </div>
+      <div>
+        <button id="loginBtn">Login</button>
+      </div>
+      <div id="loginStatus">Status: Not logged in</div>
+      <div id="tokenContainer" class="code" style="font-size: 0.8em; margin-top: 10px; word-break: break-all;"></div>
+    </div>
+    
+    <div class="panel">
+      <h2>Connection</h2>
+      <div>
+        <button id="connectBtn" disabled>Connect</button>
         <button id="disconnectBtn" disabled>Disconnect</button>
       </div>
       <div id="connectionStatus">Status: Disconnected</div>
@@ -146,6 +155,9 @@
 
   <script>
     // DOM Elements
+    const loginBtn = document.getElementById('loginBtn');
+    const loginStatus = document.getElementById('loginStatus');
+    const tokenContainer = document.getElementById('tokenContainer');
     const connectBtn = document.getElementById('connectBtn');
     const disconnectBtn = document.getElementById('disconnectBtn');
     const subscribeBtn = document.getElementById('subscribeBtn');
@@ -159,22 +171,62 @@
     // Variables
     let socket;
     let currentChannel = null;
+    let jwtToken = '';
     
-    // Connect to socket
-    connectBtn.addEventListener('click', () => {
-      const userId = document.getElementById('userId').value;
+    // Login function
+    loginBtn.addEventListener('click', async () => {
       const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
       
-      if (!userId || !username) {
-        alert('User ID and Username are required');
+      if (!username || !password) {
+        loginStatus.textContent = 'Status: Username and password required';
         return;
       }
       
-      // Connect to socket with auth credentials
+      try {
+        loginStatus.textContent = 'Status: Logging in...';
+        
+        const response = await fetch('http://localhost:3000/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username, password }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        jwtToken = data.access_token;
+        
+        loginStatus.textContent = `Status: Logged in as ${data.user.username}`;
+        tokenContainer.textContent = `Token: ${jwtToken.substring(0, 20)}...`;
+        
+        // Store user info
+        localStorage.setItem('userId', data.user.id);
+        localStorage.setItem('username', data.user.username);
+        localStorage.setItem('token', jwtToken);
+        
+        // Enable connect button
+        connectBtn.disabled = false;
+        loginBtn.disabled = true;
+        
+      } catch (error) {
+        console.error('Login error:', error);
+        loginStatus.textContent = `Status: Error - ${error.message}`;
+      }
+    });
+    
+    // Connect to socket
+    connectBtn.addEventListener('click', () => {
+      // Connect to socket with JWT token
       socket = io('http://localhost:3000/chat', {
         auth: {
-          userId,
-          username
+          token: jwtToken,
+          userId: localStorage.getItem('userId'),
+          username: localStorage.getItem('username')
         }
       });
       
@@ -278,18 +330,19 @@
           const userId = document.getElementById('userId').value;
           const username = document.getElementById('username').value;
           
-          // Get authentication from server
+          // Get authentication from server with JWT token
           const response = await fetch('http://localhost:3000/api/auth/channel', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${jwtToken}`
             },
             body: JSON.stringify({
               socket_id: socket.id,
               channel_name: formattedChannelName,
-              user_id: userId,
+              user_id: localStorage.getItem('userId'),
               user_info: {
-                name: username
+                name: localStorage.getItem('username')
               }
             }),
           });

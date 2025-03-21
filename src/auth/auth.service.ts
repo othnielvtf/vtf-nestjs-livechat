@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { UsersService } from './users.service';
 
 @Injectable()
 export class AuthService {
@@ -8,10 +10,52 @@ export class AuthService {
   private readonly appKey: string;
   private readonly appSecret: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private jwtService: JwtService,
+    private usersService: UsersService
+  ) {
     // In a real application, these would be loaded from environment variables
     this.appKey = this.configService.get<string>('PUSHER_APP_KEY', 'app-key');
     this.appSecret = this.configService.get<string>('PUSHER_APP_SECRET', 'app-secret');
+  }
+  
+  /**
+   * Authenticate a user and return a JWT token
+   * @param username Username
+   * @param password Password
+   * @returns JWT token and user information
+   */
+  async login(username: string, password: string) {
+    const user = await this.usersService.validateUser(username, password);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    
+    const payload = { username: user.username, sub: user.id };
+    
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+      },
+    };
+  }
+  
+  /**
+   * Verify JWT token
+   * @param token JWT token
+   * @returns Decoded token payload
+   */
+  async verifyToken(token: string) {
+    try {
+      return this.jwtService.verify(token);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid token');
+    }
   }
 
   /**
@@ -73,6 +117,13 @@ export class AuthService {
   ): Promise<boolean> {
     // Example implementation - customize based on your requirements
     this.logger.log(`Checking access for user ${userId} to channel ${channelName}`);
+    
+    // First, check if the user exists
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      this.logger.warn(`User ${userId} not found`);
+      return false;
+    }
     
     // For private channels starting with 'private-user-'
     if (channelName.startsWith('private-user-')) {

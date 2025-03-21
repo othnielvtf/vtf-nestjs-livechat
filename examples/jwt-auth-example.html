@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NestJS LiveChat - JWT Authentication Example</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    pre {
+      background-color: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .messages {
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .message {
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 5px;
+    }
+    .message-user {
+      background-color: #e9ecef;
+    }
+    .message-system {
+      background-color: #f8f9fa;
+      font-style: italic;
+    }
+    .username {
+      font-weight: bold;
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #6c757d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <h1 class="mb-4">NestJS LiveChat - JWT Authentication Example</h1>
+    
+    <div class="row">
+      <!-- Authentication Panel -->
+      <div class="col-md-6 mb-4">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Authentication</h5>
+          </div>
+          <div class="card-body">
+            <form id="loginForm">
+              <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" value="john_doe">
+              </div>
+              <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" value="password123">
+              </div>
+              <button type="submit" class="btn btn-primary" id="loginBtn">Login</button>
+            </form>
+            <div class="mt-3">
+              <div id="loginStatus" class="alert alert-secondary">Not logged in</div>
+              <div class="mt-2">
+                <small class="text-muted">JWT Token:</small>
+                <pre id="jwtToken" class="mt-1">None</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Connection Panel -->
+      <div class="col-md-6 mb-4">
+        <div class="card">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0">WebSocket Connection</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <button class="btn btn-success" id="connectBtn" disabled>Connect</button>
+              <button class="btn btn-danger" id="disconnectBtn" disabled>Disconnect</button>
+            </div>
+            <div id="connectionStatus" class="alert alert-secondary">Not connected</div>
+            <div class="mt-3">
+              <small class="text-muted">Socket Info:</small>
+              <pre id="socketInfo" class="mt-1">None</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row">
+      <!-- Channel Panel -->
+      <div class="col-md-6 mb-4">
+        <div class="card">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Channel Subscription</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="channelType" class="form-label">Channel Type</label>
+              <select class="form-select" id="channelType">
+                <option value="public">Public</option>
+                <option value="private" selected>Private</option>
+                <option value="presence">Presence</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="channelName" class="form-label">Channel Name</label>
+              <input type="text" class="form-control" id="channelName" value="room-123">
+            </div>
+            <div class="mb-3">
+              <button class="btn btn-info" id="subscribeBtn" disabled>Subscribe</button>
+              <button class="btn btn-warning" id="unsubscribeBtn" disabled>Unsubscribe</button>
+            </div>
+            <div id="subscriptionStatus" class="alert alert-secondary">Not subscribed</div>
+            <div class="mt-3">
+              <small class="text-muted">Auth Response:</small>
+              <pre id="authResponse" class="mt-1">None</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Chat Panel -->
+      <div class="col-md-6 mb-4">
+        <div class="card">
+          <div class="card-header bg-dark text-white">
+            <h5 class="mb-0">Chat</h5>
+          </div>
+          <div class="card-body">
+            <div class="messages" id="messages"></div>
+            <form id="messageForm">
+              <div class="input-group">
+                <input type="text" class="form-control" id="messageInput" placeholder="Type a message..." disabled>
+                <button class="btn btn-primary" type="submit" id="sendBtn" disabled>Send</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // DOM Elements
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginStatus = document.getElementById('loginStatus');
+    const jwtTokenDisplay = document.getElementById('jwtToken');
+    
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const socketInfo = document.getElementById('socketInfo');
+    
+    const channelType = document.getElementById('channelType');
+    const channelName = document.getElementById('channelName');
+    const subscribeBtn = document.getElementById('subscribeBtn');
+    const unsubscribeBtn = document.getElementById('unsubscribeBtn');
+    const subscriptionStatus = document.getElementById('subscriptionStatus');
+    const authResponse = document.getElementById('authResponse');
+    
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const messages = document.getElementById('messages');
+    
+    // Variables
+    let socket;
+    let jwtToken = '';
+    let userData = null;
+    let currentChannel = null;
+    
+    // API URL
+    const API_URL = 'http://localhost:3000/api';
+    const WS_URL = 'http://localhost:3000/chat';
+    
+    // Login Form Submission
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        updateLoginStatus('Please enter username and password', 'alert-danger');
+        return;
+      }
+      
+      try {
+        updateLoginStatus('Logging in...', 'alert-info');
+        loginBtn.disabled = true;
+        
+        const response = await fetch(`${API_URL}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username, password }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        jwtToken = data.access_token;
+        userData = data.user;
+        
+        // Display token (truncated for security)
+        const truncatedToken = jwtToken.substring(0, 20) + '...' + jwtToken.substring(jwtToken.length - 5);
+        jwtTokenDisplay.textContent = truncatedToken;
+        
+        updateLoginStatus(`Logged in as ${userData.username}`, 'alert-success');
+        connectBtn.disabled = false;
+        
+      } catch (error) {
+        console.error('Login error:', error);
+        updateLoginStatus(`Error: ${error.message}`, 'alert-danger');
+        loginBtn.disabled = false;
+      }
+    });
+    
+    // Connect to WebSocket
+    connectBtn.addEventListener('click', () => {
+      if (!jwtToken || !userData) {
+        updateConnectionStatus('You must login first', 'alert-danger');
+        return;
+      }
+      
+      try {
+        updateConnectionStatus('Connecting...', 'alert-info');
+        
+        // Initialize Socket.IO connection with JWT token
+        socket = io(WS_URL, {
+          auth: {
+            token: jwtToken,
+            userId: userData.id,
+            username: userData.username
+          }
+        });
+        
+        // Connection events
+        socket.on('connect', () => {
+          updateConnectionStatus(`Connected (Socket ID: ${socket.id})`, 'alert-success');
+          socketInfo.textContent = JSON.stringify({
+            id: socket.id,
+            connected: socket.connected
+          }, null, 2);
+          
+          connectBtn.disabled = true;
+          disconnectBtn.disabled = false;
+          subscribeBtn.disabled = false;
+          
+          addMessage('System', 'Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+          updateConnectionStatus('Disconnected', 'alert-secondary');
+          socketInfo.textContent = 'None';
+          
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          subscribeBtn.disabled = true;
+          unsubscribeBtn.disabled = true;
+          messageInput.disabled = true;
+          sendBtn.disabled = true;
+          
+          addMessage('System', 'Disconnected from server');
+        });
+        
+        // Error handling
+        socket.on('connect_error', (error) => {
+          console.error('Connection error:', error);
+          updateConnectionStatus(`Error: ${error.message}`, 'alert-danger');
+          addMessage('System', `Connection error: ${error.message}`);
+        });
+        
+        socket.on('error', (error) => {
+          console.error('Socket error:', error);
+          addMessage('System', `Socket error: ${error.message}`);
+        });
+        
+        socket.on('exception', (data) => {
+          console.error('Server exception:', data);
+          addMessage('System', `Server error: ${data.message}`);
+        });
+        
+        // Message events
+        socket.on('new_message', (message) => {
+          addMessage(message.username, message.content, new Date(message.timestamp));
+        });
+        
+        // User events
+        socket.on('user_joined', (data) => {
+          addMessage('System', `${data.username} joined the room`);
+        });
+        
+        socket.on('user_left', (data) => {
+          addMessage('System', `${data.username} left the room`);
+        });
+        
+        socket.on('room_history', (messages) => {
+          // Clear messages container
+          messages.innerHTML = '';
+          
+          // Add message history
+          messages.forEach(msg => {
+            addMessage(msg.username, msg.content, new Date(msg.timestamp));
+          });
+        });
+        
+      } catch (error) {
+        console.error('Connection error:', error);
+        updateConnectionStatus(`Error: ${error.message}`, 'alert-danger');
+      }
+    });
+    
+    // Disconnect from WebSocket
+    disconnectBtn.addEventListener('click', () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    });
+    
+    // Subscribe to channel
+    subscribeBtn.addEventListener('click', async () => {
+      if (!socket || !socket.connected) {
+        alert('You must connect first');
+        return;
+      }
+      
+      const type = channelType.value;
+      const name = channelName.value;
+      
+      if (!name) {
+        updateSubscriptionStatus('Channel name is required', 'alert-danger');
+        return;
+      }
+      
+      try {
+        updateSubscriptionStatus('Subscribing...', 'alert-info');
+        
+        // Format channel name based on type
+        let formattedChannelName = name;
+        if (type === 'private') {
+          formattedChannelName = `private-${name}`;
+        } else if (type === 'presence') {
+          formattedChannelName = `presence-${name}`;
+        }
+        
+        // For private or presence channels, we need to authenticate
+        if (type === 'private' || type === 'presence') {
+          // Get authentication from server with JWT token
+          const response = await fetch(`${API_URL}/auth/channel`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({
+              socket_id: socket.id,
+              channel_name: formattedChannelName,
+              user_id: userData.id,
+              user_info: {
+                name: userData.username
+              }
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Authentication response:', response.status, errorText);
+            throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+          }
+          
+          const authData = await response.json();
+          console.log('Auth data received:', authData);
+          authResponse.textContent = JSON.stringify(authData, null, 2);
+          
+          // Now we can join the room with the auth data
+          socket.emit('join_room', { 
+            roomId: formattedChannelName,
+            username: userData.username,
+            auth: authData.auth,
+            channel_data: authData.channel_data
+          }, (response) => {
+            // Callback to handle the response
+            console.log('Join room response:', response);
+            if (response && response.error) {
+              updateSubscriptionStatus(`Error: ${response.error}`, 'alert-danger');
+              addMessage('System', `Error joining room: ${response.error}`);
+            } else {
+              handleSuccessfulSubscription(formattedChannelName);
+            }
+          });
+        } else {
+          // For public channels, no auth needed
+          socket.emit('join_room', { 
+            roomId: formattedChannelName,
+            username: userData.username
+          }, (response) => {
+            if (response && response.error) {
+              updateSubscriptionStatus(`Error: ${response.error}`, 'alert-danger');
+              addMessage('System', `Error joining room: ${response.error}`);
+            } else {
+              handleSuccessfulSubscription(formattedChannelName);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Subscription error:', error);
+        authResponse.textContent = `Error: ${error.message}`;
+        updateSubscriptionStatus(`Error: ${error.message}`, 'alert-danger');
+        addMessage('System', `Error subscribing: ${error.message}`);
+      }
+    });
+    
+    // Handle successful subscription
+    function handleSuccessfulSubscription(channelName) {
+      currentChannel = channelName;
+      updateSubscriptionStatus(`Subscribed to ${channelName}`, 'alert-success');
+      unsubscribeBtn.disabled = false;
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+      addMessage('System', `Subscribed to ${channelName}`);
+    }
+    
+    // Unsubscribe from channel
+    unsubscribeBtn.addEventListener('click', () => {
+      if (!socket || !socket.connected || !currentChannel) {
+        return;
+      }
+      
+      socket.emit('leave_room', { roomId: currentChannel });
+      
+      updateSubscriptionStatus('Not subscribed', 'alert-secondary');
+      authResponse.textContent = 'None';
+      unsubscribeBtn.disabled = true;
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+      currentChannel = null;
+      
+      addMessage('System', 'Unsubscribed from channel');
+    });
+    
+    // Send message
+    messageForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      if (!socket || !socket.connected || !currentChannel) {
+        return;
+      }
+      
+      const content = messageInput.value.trim();
+      
+      if (!content) {
+        return;
+      }
+      
+      socket.emit('send_message', {
+        roomId: currentChannel,
+        content
+      });
+      
+      messageInput.value = '';
+    });
+    
+    // Helper functions
+    function updateLoginStatus(message, className) {
+      loginStatus.textContent = message;
+      loginStatus.className = `alert ${className}`;
+    }
+    
+    function updateConnectionStatus(message, className) {
+      connectionStatus.textContent = message;
+      connectionStatus.className = `alert ${className}`;
+    }
+    
+    function updateSubscriptionStatus(message, className) {
+      subscriptionStatus.textContent = message;
+      subscriptionStatus.className = `alert ${className}`;
+    }
+    
+    function addMessage(username, content, timestamp = new Date()) {
+      const messageEl = document.createElement('div');
+      messageEl.className = username === 'System' ? 'message message-system' : 'message message-user';
+      
+      const headerEl = document.createElement('div');
+      headerEl.className = 'd-flex justify-content-between align-items-center mb-1';
+      
+      const usernameEl = document.createElement('span');
+      usernameEl.className = 'username';
+      usernameEl.textContent = username;
+      
+      const timestampEl = document.createElement('span');
+      timestampEl.className = 'timestamp';
+      timestampEl.textContent = formatTime(timestamp);
+      
+      headerEl.appendChild(usernameEl);
+      headerEl.appendChild(timestampEl);
+      
+      const contentEl = document.createElement('div');
+      contentEl.textContent = content;
+      
+      messageEl.appendChild(headerEl);
+      messageEl.appendChild(contentEl);
+      
+      messages.appendChild(messageEl);
+      messages.scrollTop = messages.scrollHeight;
+    }
+    
+    function formatTime(date) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
-import { Controller, Post, Body, UnauthorizedException, Logger } from '@nestjs/common';
+import { Controller, Post, Body, UnauthorizedException, Logger, UseGuards, Get, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 interface ChannelAuthDto {
   socket_id: string;
@@ -8,11 +9,32 @@ interface ChannelAuthDto {
   user_info?: Record<string, any>;
 }
 
+interface LoginDto {
+  username: string;
+  password: string;
+}
+
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
   constructor(private readonly authService: AuthService) {}
+  
+  @Post('login')
+  async login(@Body() loginDto: LoginDto) {
+    try {
+      return await this.authService.login(loginDto.username, loginDto.password);
+    } catch (error) {
+      this.logger.error(`Login failed: ${error.message}`, error.stack);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+  }
+  
+  @UseGuards(JwtAuthGuard)
+  @Get('profile')
+  getProfile(@Request() req) {
+    return req.user;
+  }
 
   @Post('channel')
   async authenticateChannel(@Body() authDto: ChannelAuthDto) {
