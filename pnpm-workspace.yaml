@@ -1,2 +1,14 @@
+# Limit the release-age exception to the patched version selected below.
+minimumReleaseAgeExclude:
+  - minimatch@11.0.4
+
 overrides:
   '@nestjs/platform-express>multer': ^2.5.0
+  'glob@^10.0.0 || ^13.0.0': ^14.0.3
+  'minimatch@^9.0.0 || ^10.0.0': ^11.0.4
+
+# Keep the Nest 11 generators' optional watcher separate from CLI 12's watcher.
+packageExtensions:
+  '@nestjs/schematics@11':
+    dependencies:
+      chokidar: ^4.0.3

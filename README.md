@@ -79,6 +79,13 @@ examples/
 
 ## Installation
 
+Use Node.js 22.22.3+, 24.15.0+, or 26+ (see `engines` in `package.json`).
+These minimums come from the development toolchain. The application runtime
+remains on NestJS 11. The CLI uses version 12, while the project's generators
+stay on version 11 for compatibility with TypeScript 5.
+The pnpm package extension gives those generators Chokidar 4, keeping their
+watcher separate from the CLI's Chokidar 5.
+
 ```bash
 $ npm install
 ```
@@ -90,18 +97,35 @@ The NestJS runtime and testing packages stay on version 11, with a minimum of
 still pins Multer 2.4.0, so a scoped override selects Multer 2.5.x or later in
 the 2.x line to fix
 [GHSA-q7qp-rjg7-q26m](https://github.com/advisories/GHSA-q7qp-rjg7-q26m).
-Keep the npm override in `package.json` and the pnpm override in
-`pnpm-workspace.yaml` aligned until Nest includes the fix.
+Jest 30 and ESLint 10 use the modern glob APIs, so version-scoped overrides
+also select `glob` 14.0.3+ and `minimatch` 11.0.4+ to address
+[GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) and
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+These overrides target the modern major versions used by this toolchain;
+older consumers with different APIs must be migrated before overriding them.
+Keep the npm overrides in `package.json` and the pnpm overrides in
+`pnpm-workspace.yaml` aligned until their parent packages include the fixes.
 
 Use `npm audit --omit=dev` to check production dependencies and `npm audit` for
-the complete tree. Development tools currently retain findings through
-`deepmerge`, `glob`, and `minimatch`; compatible upstream updates are still
-needed. Avoid `npm audit fix --force`, which proposes major upgrades and
-downgrades of the build, test, and lint tools.
+the complete tree. As of November 3, 2026, both production audits are clean;
+the npm development audit reports six low-severity entries, all tracing to
+Jest's `deepmerge` 4.3.1 dependency
+([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)).
+There is no patched upstream release. This remains an open development-only
+risk: Jest uses it to merge test configuration, and it is not installed in a
+production-only install. Keep test configuration trusted and recheck when
+Jest or deepmerge releases an update. Avoid `npm audit fix --force`, which
+currently proposes downgrading Jest and ts-jest to version 25.
 
 On npm 12, blocked install-script warnings are separate from audit findings.
-Use `npm install-scripts ls` to review them. The default TypeScript build does
-not require the optional SWC and filesystem-watcher install scripts.
+Use `npm install-scripts ls` to review them. SWC and webpack build tools have
+been removed because this project uses the default TypeScript compiler.
+The optional native watcher has a prebuilt binary on supported platforms;
+verify watch mode if a native fallback build is needed.
+
+When refreshing either lockfile, validate with `npm run build`,
+`npm test -- --runInBand`, `npm run test:e2e -- --runInBand`, and
+`npm run test:cov -- --runInBand`, plus a development-server restart check.
 
 ## Configuration
 
