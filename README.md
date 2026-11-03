@@ -83,6 +83,26 @@ examples/
 $ npm install
 ```
 
+### Dependency security
+
+The NestJS runtime and testing packages stay on version 11, with a minimum of
+11.2.8 to include the patched HTTP routing dependency. Nest's Express adapter
+still pins Multer 2.4.0, so a scoped override selects Multer 2.5.x or later in
+the 2.x line to fix
+[GHSA-q7qp-rjg7-q26m](https://github.com/advisories/GHSA-q7qp-rjg7-q26m).
+Keep the npm override in `package.json` and the pnpm override in
+`pnpm-workspace.yaml` aligned until Nest includes the fix.
+
+Use `npm audit --omit=dev` to check production dependencies and `npm audit` for
+the complete tree. Development tools currently retain findings through
+`deepmerge`, `glob`, and `minimatch`; compatible upstream updates are still
+needed. Avoid `npm audit fix --force`, which proposes major upgrades and
+downgrades of the build, test, and lint tools.
+
+On npm 12, blocked install-script warnings are separate from audit findings.
+Use `npm install-scripts ls` to review them. The default TypeScript build does
+not require the optional SWC and filesystem-watcher install scripts.
+
 ## Configuration
 
 The application uses environment variables for configuration. Copy the example environment file and update it with your settings:
